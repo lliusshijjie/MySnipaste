@@ -1,23 +1,29 @@
-name: C/C++ CI
+name: Windows CMake CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
+  build-and-test:
+    runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: configure
-      run: ./configure
-    - name: make
-      run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure, build, and test
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSINSTALL=%%i"
+          if "%VSINSTALL%"=="" exit /b 1
+          call "%VSINSTALL%\VC\Auxiliary\Build\vcvars64.bat"
+          if errorlevel 1 exit /b %errorlevel%
+          cmake -S . -B build-nmake -G "NMake Makefiles"
+          if errorlevel 1 exit /b %errorlevel%
+          cmake --build build-nmake
+          if errorlevel 1 exit /b %errorlevel%
+          ctest --test-dir build-nmake --output-on-failure
+          if errorlevel 1 exit /b %errorlevel%
