@@ -47,7 +47,8 @@ RECT HighlightShape::Bounds() const {
 }
 
 void HighlightShape::MoveBy(int dx, int dy, SIZE imageSize) {
-    rect = ClampMovedRect(OffsetRectCopy(rect, dx, dy), imageSize);
+    const POINT delta = ComputeBoundedMoveDelta(Bounds(), dx, dy, imageSize);
+    rect = OffsetRectCopy(rect, delta.x, delta.y);
 }
 
 bool HighlightShape::ApplyStyle(const EditorStyle& style) {

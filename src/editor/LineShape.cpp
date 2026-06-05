@@ -39,14 +39,11 @@ RECT LineShape::Bounds() const {
 }
 
 void LineShape::MoveBy(int dx, int dy, SIZE imageSize) {
-    RECT moved = ClampMovedRect(OffsetRectCopy(BoundsFromPoints(start, end), dx, dy), imageSize);
-    const RECT current = BoundsFromPoints(start, end);
-    const int actualDx = moved.left - current.left;
-    const int actualDy = moved.top - current.top;
-    start.x += actualDx;
-    end.x += actualDx;
-    start.y += actualDy;
-    end.y += actualDy;
+    const POINT delta = ComputeBoundedMoveDelta(Bounds(), dx, dy, imageSize);
+    start.x += delta.x;
+    end.x += delta.x;
+    start.y += delta.y;
+    end.y += delta.y;
 }
 
 bool LineShape::ApplyStyle(const EditorStyle& style) {

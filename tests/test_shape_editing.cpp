@@ -2,19 +2,41 @@
 
 #include "editor/ArrowShape.h"
 #include "editor/BlurShape.h"
+#include "editor/EllipseShape.h"
 #include "editor/EditorStyle.h"
 #include "editor/FreehandShape.h"
+#include "editor/HighlightShape.h"
+#include "editor/LineShape.h"
+#include "editor/MosaicShape.h"
+#include "editor/NumberShape.h"
 #include "editor/RectangleShape.h"
 #include "editor/TagShape.h"
 #include "editor/TextShape.h"
 
 using mysnip::editor::ArrowShape;
 using mysnip::editor::BlurShape;
+using mysnip::editor::EllipseShape;
 using mysnip::editor::EditorStyle;
 using mysnip::editor::FreehandShape;
+using mysnip::editor::HighlightShape;
+using mysnip::editor::LineShape;
+using mysnip::editor::MosaicShape;
+using mysnip::editor::NumberShape;
 using mysnip::editor::RectangleShape;
 using mysnip::editor::TagShape;
 using mysnip::editor::TextShape;
+
+namespace {
+
+void RequireBoundsInside(const mysnip::editor::Shape& shape, SIZE imageSize) {
+    const RECT bounds = shape.Bounds();
+    REQUIRE(bounds.left >= 0);
+    REQUIRE(bounds.top >= 0);
+    REQUIRE(bounds.right <= imageSize.cx);
+    REQUIRE(bounds.bottom <= imageSize.cy);
+}
+
+} // namespace
 
 TEST_CASE(ShapeHitTest_RectangleDetectsBorderPoint) {
     RectangleShape shape(RECT{10, 10, 80, 60});
@@ -29,10 +51,96 @@ TEST_CASE(ShapeMove_RectangleMovesBounds) {
     shape.MoveBy(5, -3, SIZE{200, 200});
     const RECT bounds = shape.Bounds();
 
-    REQUIRE(bounds.left == 15);
-    REQUIRE(bounds.top == 7);
-    REQUIRE(bounds.right == 85);
-    REQUIRE(bounds.bottom == 57);
+    REQUIRE(bounds.left == 14);
+    REQUIRE(bounds.top == 6);
+    REQUIRE(bounds.right == 86);
+    REQUIRE(bounds.bottom == 58);
+}
+
+TEST_CASE(ShapeMove_RectangleClampsVisibleBoundsToImage) {
+    RectangleShape shape(RECT{20, 20, 60, 60});
+    shape.thickness = 10;
+
+    shape.MoveBy(-100, -100, SIZE{100, 100});
+
+    RequireBoundsInside(shape, SIZE{100, 100});
+}
+
+TEST_CASE(ShapeMove_EllipseClampsVisibleBoundsToImage) {
+    EllipseShape shape(RECT{20, 20, 60, 60});
+    shape.thickness = 10;
+
+    shape.MoveBy(100, 100, SIZE{100, 100});
+
+    RequireBoundsInside(shape, SIZE{100, 100});
+}
+
+TEST_CASE(ShapeMove_LineClampsStrokeBoundsToImage) {
+    LineShape shape(POINT{20, 20}, POINT{80, 20});
+    shape.thickness = 12;
+
+    shape.MoveBy(100, -100, SIZE{100, 100});
+
+    RequireBoundsInside(shape, SIZE{100, 100});
+}
+
+TEST_CASE(ShapeMove_ArrowClampsArrowHeadBoundsToImage) {
+    ArrowShape shape(POINT{40, 40}, POINT{80, 80});
+    shape.thickness = 8;
+
+    shape.MoveBy(100, 100, SIZE{100, 100});
+
+    RequireBoundsInside(shape, SIZE{100, 100});
+}
+
+TEST_CASE(ShapeMove_FreehandClampsStrokeBoundsToImage) {
+    FreehandShape shape({POINT{20, 20}, POINT{50, 50}, POINT{80, 20}});
+    shape.thickness = 12;
+
+    shape.MoveBy(-100, 100, SIZE{100, 100});
+
+    RequireBoundsInside(shape, SIZE{100, 100});
+}
+
+TEST_CASE(ShapeMove_TextClampsBoundsToImage) {
+    TextShape text(POINT{20, 20}, L"move text");
+    text.fontSize = 18;
+
+    text.MoveBy(100, 100, SIZE{120, 80});
+
+    RequireBoundsInside(text, SIZE{120, 80});
+}
+
+TEST_CASE(ShapeMove_TagClampsBoundsToImage) {
+    TagShape tag(POINT{20, 20}, L"tag");
+    tag.fontSize = 18;
+
+    tag.MoveBy(-100, -100, SIZE{120, 80});
+
+    RequireBoundsInside(tag, SIZE{120, 80});
+}
+
+TEST_CASE(ShapeMove_NumberClampsCircleToImage) {
+    NumberShape number(POINT{30, 30}, 1);
+    number.radius = 16;
+
+    number.MoveBy(-100, 100, SIZE{100, 100});
+
+    RequireBoundsInside(number, SIZE{100, 100});
+}
+
+TEST_CASE(ShapeMove_HighlightMosaicBlurClampToImage) {
+    HighlightShape highlight(RECT{20, 20, 60, 60});
+    MosaicShape mosaic(RECT{20, 20, 60, 60});
+    BlurShape blur(RECT{20, 20, 60, 60});
+
+    highlight.MoveBy(-100, 100, SIZE{100, 100});
+    mosaic.MoveBy(100, -100, SIZE{100, 100});
+    blur.MoveBy(100, 100, SIZE{100, 100});
+
+    RequireBoundsInside(highlight, SIZE{100, 100});
+    RequireBoundsInside(mosaic, SIZE{100, 100});
+    RequireBoundsInside(blur, SIZE{100, 100});
 }
 
 TEST_CASE(ShapeStyle_RectangleAppliesStrokeStyle) {

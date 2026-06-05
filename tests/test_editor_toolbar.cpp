@@ -162,6 +162,57 @@ TEST_CASE(ToolbarHitTest_IgnoresClickOutsideToolbar) {
     REQUIRE(!action.has_value());
 }
 
+TEST_CASE(ToolbarMove_MovesToolbarAndButtons) {
+    EditorToolbar toolbar;
+    const RECT capture{100, 100, 600, 300};
+    const RECT virtualScreen{0, 0, 1200, 900};
+
+    toolbar.Layout(capture, virtualScreen);
+    const RECT beforeToolbar = toolbar.Bounds();
+    const auto beforeConfirm = toolbar.ButtonBounds(ToolbarAction::Confirm);
+    REQUIRE(beforeConfirm.has_value());
+
+    toolbar.MoveBy(40, 25, virtualScreen);
+
+    const RECT afterToolbar = toolbar.Bounds();
+    const auto afterConfirm = toolbar.ButtonBounds(ToolbarAction::Confirm);
+    REQUIRE(afterConfirm.has_value());
+    REQUIRE(afterToolbar.left == beforeToolbar.left + 40);
+    REQUIRE(afterToolbar.top == beforeToolbar.top + 25);
+    REQUIRE(afterConfirm->left == beforeConfirm->left + 40);
+    REQUIRE(afterConfirm->top == beforeConfirm->top + 25);
+}
+
+TEST_CASE(ToolbarMove_ClampsToVirtualScreen) {
+    EditorToolbar toolbar;
+    const RECT capture{100, 100, 600, 300};
+    const RECT virtualScreen{0, 0, 900, 500};
+
+    toolbar.Layout(capture, virtualScreen);
+    toolbar.MoveBy(-10000, -10000, virtualScreen);
+    RECT bounds = toolbar.Bounds();
+    REQUIRE(bounds.left >= virtualScreen.left);
+    REQUIRE(bounds.top >= virtualScreen.top);
+
+    toolbar.MoveBy(10000, 10000, virtualScreen);
+    bounds = toolbar.Bounds();
+    REQUIRE(bounds.right <= virtualScreen.right);
+    REQUIRE(bounds.bottom <= virtualScreen.bottom);
+}
+
+TEST_CASE(ToolbarMove_PreservesButtonHitTesting) {
+    EditorToolbar toolbar;
+    const RECT capture{100, 100, 600, 300};
+    const RECT virtualScreen{0, 0, 1200, 900};
+
+    toolbar.Layout(capture, virtualScreen);
+    toolbar.MoveBy(30, 10, virtualScreen);
+
+    const auto save = toolbar.ButtonBounds(ToolbarAction::Save);
+    REQUIRE(save.has_value());
+    REQUIRE(toolbar.HitTest(CenterOf(*save)) == ToolbarAction::Save);
+}
+
 TEST_CASE(ToolbarHistory_DisablesUndoRedoWhenUnavailable) {
     EditorToolbar toolbar;
     const RECT capture{100, 100, 600, 300};

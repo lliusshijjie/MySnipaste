@@ -141,7 +141,12 @@ struct EditorDocument {
             ? SIZE{baseImage.width, baseImage.height}
             : SIZE{1000000, 1000000};
         auto before = CaptureSnapshot();
+        const RECT beforeBounds = selected->Bounds();
         selected->MoveBy(dx, dy, imageSize);
+        const RECT afterBounds = selected->Bounds();
+        if (EqualRect(&beforeBounds, &afterBounds)) {
+            return false;
+        }
         CommitSnapshot(std::move(before));
         return true;
     }

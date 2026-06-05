@@ -10,3 +10,8 @@ TEST_CASE(CaptureOverlayConfig_UsesLighterSelectionMask) {
 TEST_CASE(EditorPaintConfig_DisablesBackgroundEraseToAvoidFlicker) {
     REQUIRE(!mysnip::editor::kEraseBackgroundBeforeEditorPaint);
 }
+
+TEST_CASE(EditorPaintConfig_UsesTransparentEditorBackgroundAfterCapture) {
+    REQUIRE(mysnip::editor::kEditorUsesTransparentBackground);
+    REQUIRE(mysnip::editor::kEditorTransparentBackgroundColor == RGB(255, 0, 255));
+}

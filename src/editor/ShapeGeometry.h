@@ -14,7 +14,39 @@ inline RECT OffsetRectCopy(RECT rect, int dx, int dy) {
     return rect;
 }
 
+inline RECT InflateRectCopy(RECT rect, int dx, int dy) {
+    rect.left -= dx;
+    rect.right += dx;
+    rect.top -= dy;
+    rect.bottom += dy;
+    return rect;
+}
+
+inline POINT ComputeBoundedMoveDelta(RECT bounds, int dx, int dy, SIZE imageSize) {
+    if (bounds.right <= bounds.left || bounds.bottom <= bounds.top || imageSize.cx <= 0 || imageSize.cy <= 0) {
+        return POINT{0, 0};
+    }
+
+    const int width = bounds.right - bounds.left;
+    const int height = bounds.bottom - bounds.top;
+    int actualDx = dx;
+    int actualDy = dy;
+    if (width <= imageSize.cx) {
+        const int minDx = -static_cast<int>(bounds.left);
+        const int maxDx = imageSize.cx - static_cast<int>(bounds.right);
+        actualDx = (std::max)(minDx, (std::min)(dx, maxDx));
+    }
+    if (height <= imageSize.cy) {
+        const int minDy = -static_cast<int>(bounds.top);
+        const int maxDy = imageSize.cy - static_cast<int>(bounds.bottom);
+        actualDy = (std::max)(minDy, (std::min)(dy, maxDy));
+    }
+    return POINT{actualDx, actualDy};
+}
+
 inline RECT ClampMovedRect(RECT rect, SIZE imageSize) {
+    const POINT delta = ComputeBoundedMoveDelta(rect, 0, 0, imageSize);
+    rect = OffsetRectCopy(rect, delta.x, delta.y);
     const int width = rect.right - rect.left;
     const int height = rect.bottom - rect.top;
     if (width <= 0 || height <= 0 || imageSize.cx <= 0 || imageSize.cy <= 0) {

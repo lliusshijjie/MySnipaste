@@ -72,7 +72,8 @@ RECT MosaicShape::Bounds() const {
 }
 
 void MosaicShape::MoveBy(int dx, int dy, SIZE imageSize) {
-    rect = ClampMovedRect(OffsetRectCopy(rect, dx, dy), imageSize);
+    const POINT delta = ComputeBoundedMoveDelta(Bounds(), dx, dy, imageSize);
+    rect = OffsetRectCopy(rect, delta.x, delta.y);
 }
 
 bool MosaicShape::ApplyStyle(const EditorStyle& style) {

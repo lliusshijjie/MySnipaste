@@ -6,6 +6,7 @@
 #include "editor/ToolManager.h"
 #include "editor/EditorResult.h"
 #include "editor/EditorToolbar.h"
+#include "editor/EditorViewport.h"
 #include "editor/EditorStyleBar.h"
 #include "editor/CropGeometry.h"
 
@@ -27,11 +28,13 @@ private:
     bool CreateEditorWindow(HWND owner);
     void CreateToolbarTooltips();
     void DestroyToolbarTooltips();
+    void UpdateToolbarTooltipRects();
     void RelayTooltipMessage(UINT message, WPARAM wParam, LPARAM lParam);
     void Complete(EditorStatus status);
     void ConfirmAndExport();
     void PinAndClose();
     void SavePngFromDialog();
+    void RunOcr();
     void OnPaint();
     void DrawScene(HDC hdc, const RECT& client);
     void InvalidateEditor();
@@ -41,6 +44,7 @@ private:
     void OnMouseDown(POINT screenPoint);
     void OnMouseMove(POINT screenPoint);
     void OnMouseUp(POINT screenPoint);
+    void OnMouseWheel(POINT screenPoint, int delta, bool ctrlDown);
     void OnKeyDown(WPARAM key);
     void BeginTextInput(POINT imagePoint, const std::wstring& initialText = L"", std::optional<std::size_t> editIndex = std::nullopt);
     void PlaceNumber(POINT imagePoint);
@@ -53,6 +57,7 @@ private:
     std::unique_ptr<Shape> MakeShapeForCurrentDrag() const;
     void UpdatePreviewShape();
     void DrawCropPreview(HDC hdc, const RECT& imageClientRect);
+    void RefreshViewportClientRect();
 
     static LRESULT CALLBACK TextEditProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
@@ -62,6 +67,8 @@ private:
     RECT virtualScreen_{};
     RECT imageRect_{};
     RECT imageClientRect_{};
+    RECT viewportClientRect_{};
+    EditorViewport viewport_;
     EditorToolbar toolbar_;
     EditorStyleBar styleBar_;
     EditorDocument document_;
@@ -69,13 +76,16 @@ private:
     std::unique_ptr<Shape> previewShape_;
     std::optional<RECT> previewCropRect_;
     bool dragging_ = false;
+    bool draggingToolbar_ = false;
     bool movingSelected_ = false;
+    bool movedSelectedDuringDrag_ = false;
     bool adjustingCrop_ = false;
     CropHandle activeCropHandle_ = CropHandle::None;
     RECT cropDragOriginal_{};
     POINT dragStartImage_{};
     POINT dragCurrentImage_{};
     POINT lastMoveImage_{};
+    POINT toolbarDragLastScreen_{};
     std::vector<POINT> freehandPoints_;
     std::unique_ptr<EditorDocument::DocumentSnapshot> dragBeforeSnapshot_;
     HWND textEditHwnd_ = nullptr;

@@ -2,6 +2,7 @@
 
 #include "app/CommandIds.h"
 #include "app/AppResources.h"
+#include "tray/TrayMenuModel.h"
 #include "tray/TrayNotificationPolicy.h"
 #include "utils/LogUtils.h"
 
@@ -77,9 +78,13 @@ void TrayIcon::ShowMenu(HWND hwnd) {
         return;
     }
 
-    AppendMenuW(menu, MF_STRING, mysnip::app::kCommandCapture, L"Capture");
-    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, mysnip::app::kCommandExit, L"Exit");
+    for (const auto& item : BuildTrayMenuItems()) {
+        if (item.separator) {
+            AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        } else {
+            AppendMenuW(menu, MF_STRING, item.commandId, item.text.data());
+        }
+    }
 
     POINT pt{};
     GetCursorPos(&pt);

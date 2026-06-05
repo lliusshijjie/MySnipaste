@@ -143,9 +143,30 @@ void App::StartCapture() {
         return;
     }
 
+    OpenEditorForCapture(*captureResult);
+}
+
+void App::StartLongCapture() {
+    if (state_ != AppState::Idle) {
+        utils::LogInfo(L"[App] Long capture ignored because the app is busy.");
+        return;
+    }
+
+    SetState(AppState::LongSelecting);
+    SetState(AppState::LongCapturing);
+    const auto captureResult = longCaptureController_.Capture(mainWindow_, captureBackend_);
+    if (!captureResult.has_value()) {
+        SetState(AppState::Idle);
+        return;
+    }
+
+    OpenEditorForCapture(*captureResult);
+}
+
+void App::OpenEditorForCapture(const capture::CaptureResult& captureResult) {
     SetState(AppState::Editing);
     editor::EditorWindow editor;
-    const auto editorResult = editor.ShowModal(mainWindow_, *captureResult);
+    const auto editorResult = editor.ShowModal(mainWindow_, captureResult);
     if (editorResult.status == editor::EditorStatus::Cancelled) {
         SetState(AppState::Idle);
         return;
@@ -218,6 +239,9 @@ LRESULT App::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam
         case kCommandCapture:
             StartCapture();
             return 0;
+        case kCommandLongCapture:
+            StartLongCapture();
+            return 0;
         case kCommandExit:
             Shutdown();
             PostQuitMessage(0);
@@ -243,6 +267,14 @@ LRESULT App::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam
         }
         if (wParam == kEditorNotifyPngSaveFailed) {
             trayIcon_.ShowBalloon(L"MySnipaste", L"Failed to save PNG.");
+            return 0;
+        }
+        if (wParam == kEditorNotifyOcrUnavailable) {
+            trayIcon_.ShowBalloon(L"MySnipaste", L"OCR requires the packaged app.");
+            return 0;
+        }
+        if (wParam == kEditorNotifyOcrFailed) {
+            trayIcon_.ShowBalloon(L"MySnipaste", L"Failed to recognize text.");
             return 0;
         }
         break;

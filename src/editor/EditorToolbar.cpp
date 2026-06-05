@@ -15,7 +15,7 @@ constexpr int kToolbarHeight = 40;
 constexpr int kButtonSize = 32;
 constexpr int kGap = 6;
 constexpr int kMargin = 8;
-constexpr int kButtonCount = 19;
+constexpr int kButtonCount = 20;
 
 struct ButtonSpec {
     ToolbarIcon icon;
@@ -32,6 +32,7 @@ constexpr std::array<ButtonSpec, kButtonCount> kButtonSpecs{{
     {ToolbarIcon::Arrow, ToolbarAction::Arrow, true, L"\u7bad\u5934"},
     {ToolbarIcon::Freehand, ToolbarAction::Freehand, true, L"\u753b\u7b14"},
     {ToolbarIcon::Text, ToolbarAction::Text, true, L"\u6587\u5b57"},
+    {ToolbarIcon::Ocr, ToolbarAction::Ocr, true, L"\u8bc6\u522b\u6587\u5b57"},
     {ToolbarIcon::Tag, ToolbarAction::Tag, true, L"\u6807\u7b7e"},
     {ToolbarIcon::Mosaic, ToolbarAction::Mosaic, true, L"\u9a6c\u8d5b\u514b"},
     {ToolbarIcon::Blur, ToolbarAction::Blur, true, L"\u6a21\u7cca"},
@@ -126,6 +127,12 @@ void DrawToolbarIcon(HDC hdc, const RECT& r, ToolbarIcon icon, COLORREF color) {
     case ToolbarIcon::Text:
         DrawLine(hdc, cx - 7, cy - 7, cx + 7, cy - 7);
         DrawLine(hdc, cx, cy - 7, cx, cy + 8);
+        break;
+    case ToolbarIcon::Ocr:
+        RoundRect(hdc, cx - 9, cy - 8, cx + 9, cy + 8, 3, 3);
+        DrawLine(hdc, cx - 4, cy - 3, cx + 4, cy - 3);
+        DrawLine(hdc, cx - 4, cy + 2, cx + 4, cy + 2);
+        DrawLine(hdc, cx - 4, cy + 7, cx + 2, cy + 7);
         break;
     case ToolbarIcon::Tag: {
         const POINT tag[] = {{cx - 8, cy - 6}, {cx + 2, cy - 6}, {cx + 8, cy}, {cx + 2, cy + 6}, {cx - 8, cy + 6}, {cx - 8, cy - 6}};
@@ -328,6 +335,39 @@ std::optional<ToolbarAction> EditorToolbar::HitTest(POINT pt) const {
         }
     }
     return std::nullopt;
+}
+
+void EditorToolbar::MoveBy(int dx, int dy, const RECT& virtualScreenRect) {
+    if (utils::Width(toolbarBounds_) <= 0 || utils::Height(toolbarBounds_) <= 0) {
+        return;
+    }
+
+    const int minDx = virtualScreenRect.left - toolbarBounds_.left;
+    const int maxDx = virtualScreenRect.right - toolbarBounds_.right;
+    const int minDy = virtualScreenRect.top - toolbarBounds_.top;
+    const int maxDy = virtualScreenRect.bottom - toolbarBounds_.bottom;
+    const int actualDx = (std::clamp)(dx, minDx, maxDx);
+    const int actualDy = (std::clamp)(dy, minDy, maxDy);
+    if (actualDx == 0 && actualDy == 0) {
+        return;
+    }
+
+    OffsetRect(&toolbarBounds_, actualDx, actualDy);
+    for (auto& button : buttons_) {
+        OffsetRect(&button.bounds, actualDx, actualDy);
+    }
+}
+
+bool EditorToolbar::IsDragSurface(POINT pt) const {
+    if (!ContainsPoint(toolbarBounds_, pt)) {
+        return false;
+    }
+    for (const auto& button : buttons_) {
+        if (ContainsPoint(button.bounds, pt)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void EditorToolbar::SetCurrentTool(ToolType tool) {

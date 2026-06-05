@@ -18,6 +18,7 @@ set(SCREENSHOT_MVP_SOURCES
     src/editor/EditorWindow.cpp
     src/editor/EditorRenderer.cpp
     src/editor/EditorStyleBar.cpp
+    src/editor/EditorViewport.cpp
     src/editor/EllipseShape.cpp
     src/editor/FreehandShape.cpp
     src/editor/HighlightShape.cpp
@@ -35,9 +36,19 @@ set(SCREENSHOT_MVP_SOURCES
     src/hotkey/HotkeyManager.cpp
     src/image/DibBuilder.cpp
     src/image/ImageBuffer.cpp
+    src/longcapture/LongCaptureController.cpp
+    src/longcapture/LongCaptureOverlayLayout.cpp
+    src/longcapture/LongCaptureOverlayWindow.cpp
+    src/longcapture/LongCaptureSessionWindow.cpp
+    src/longcapture/LongCaptureStitcher.cpp
+    src/longcapture/ScrollDriver.cpp
     src/main.cpp
+    src/ocr/OcrClipboardText.cpp
+    src/ocr/OcrTextDialog.cpp
+    src/ocr/WindowsOcrEngine.cpp
     src/pin/PinnedImageManager.cpp
     src/pin/PinnedImageWindow.cpp
+    src/tray/TrayMenuModel.cpp
     src/tray/TrayIcon.cpp
     src/utils/DpiUtils.cpp
     src/utils/LogUtils.cpp
@@ -71,6 +82,7 @@ target_link_libraries(ScreenshotMvp
         comdlg32
         ole32
         windowscodecs
+        windowsapp
 )
 
 add_executable(ScreenshotMvpTests
@@ -79,6 +91,7 @@ add_executable(ScreenshotMvpTests
     src/editor/EditorToolbar.cpp
     src/editor/EditorRenderer.cpp
     src/editor/EditorStyleBar.cpp
+    src/editor/EditorViewport.cpp
     src/editor/EllipseShape.cpp
     src/editor/FreehandShape.cpp
     src/editor/HighlightShape.cpp
@@ -94,19 +107,30 @@ add_executable(ScreenshotMvpTests
     src/export/PngFileExporter.cpp
     src/image/DibBuilder.cpp
     src/image/ImageBuffer.cpp
+    src/longcapture/LongCaptureOverlayLayout.cpp
+    src/longcapture/LongCaptureStitcher.cpp
+    src/ocr/OcrClipboardText.cpp
+    src/ocr/WindowsOcrEngine.cpp
     src/pin/PinnedImageManager.cpp
     src/pin/PinnedImageWindow.cpp
+    src/tray/TrayMenuModel.cpp
     src/utils/LogUtils.cpp
     tests/test_editor_document.cpp
     tests/test_editor_style_bar.cpp
     tests/test_editor_geometry.cpp
     tests/test_editor_renderer.cpp
     tests/test_editor_toolbar.cpp
+    tests/test_editor_viewport.cpp
     tests/test_editor_paint_config.cpp
     tests/test_crop_adjustment.cpp
     tests/test_shape_editing.cpp
     tests/test_png_file_exporter.cpp
     tests/test_pin_feature.cpp
+    tests/test_long_capture_stitcher.cpp
+    tests/test_long_capture_overlay_layout.cpp
+    tests/test_long_capture_overlay_config.cpp
+    tests/test_ocr_feature.cpp
+    tests/test_tray_menu_model.cpp
     tests/test_virtual_screen_utils.cpp
     tests/test_capture_overlay_state.cpp
     tests/test_clipboard_retry_policy.cpp
@@ -137,6 +161,17 @@ target_link_libraries(ScreenshotMvpTests
         gdi32
         ole32
         windowscodecs
+        windowsapp
 )
 
 add_test(NAME ScreenshotMvpTests COMMAND ScreenshotMvpTests)
+
+add_custom_target(package-msix
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+        -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/package_msix.ps1"
+        -BuildDir "${CMAKE_BINARY_DIR}"
+        -OutputPath "${CMAKE_BINARY_DIR}/MySnipaste.msix"
+    DEPENDS ScreenshotMvp
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "Packaging MySnipaste MSIX"
+)

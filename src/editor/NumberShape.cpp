@@ -76,9 +76,9 @@ RECT NumberShape::Bounds() const {
 }
 
 void NumberShape::MoveBy(int dx, int dy, SIZE imageSize) {
-    const RECT moved = ClampMovedRect(OffsetRectCopy(Bounds(), dx, dy), imageSize);
-    center.x = (moved.left + moved.right) / 2;
-    center.y = (moved.top + moved.bottom) / 2;
+    const POINT delta = ComputeBoundedMoveDelta(Bounds(), dx, dy, imageSize);
+    center.x += delta.x;
+    center.y += delta.y;
 }
 
 bool NumberShape::ApplyStyle(const EditorStyle& style) {

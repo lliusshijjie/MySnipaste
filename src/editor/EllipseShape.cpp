@@ -41,11 +41,13 @@ bool EllipseShape::HitTest(POINT point, int tolerance) const {
 }
 
 RECT EllipseShape::Bounds() const {
-    return rect;
+    const int padding = (std::max)(1, thickness / 2);
+    return InflateRectCopy(rect, padding, padding);
 }
 
 void EllipseShape::MoveBy(int dx, int dy, SIZE imageSize) {
-    rect = ClampMovedRect(OffsetRectCopy(rect, dx, dy), imageSize);
+    const POINT delta = ComputeBoundedMoveDelta(Bounds(), dx, dy, imageSize);
+    rect = OffsetRectCopy(rect, delta.x, delta.y);
 }
 
 bool EllipseShape::ApplyStyle(const EditorStyle& style) {

@@ -70,13 +70,10 @@ RECT FreehandShape::Bounds() const {
 }
 
 void FreehandShape::MoveBy(int dx, int dy, SIZE imageSize) {
-    const RECT current = Bounds();
-    const RECT moved = ClampMovedRect(OffsetRectCopy(current, dx, dy), imageSize);
-    const int actualDx = moved.left - current.left;
-    const int actualDy = moved.top - current.top;
+    const POINT delta = ComputeBoundedMoveDelta(Bounds(), dx, dy, imageSize);
     for (auto& point : points) {
-        point.x += actualDx;
-        point.y += actualDy;
+        point.x += delta.x;
+        point.y += delta.y;
     }
 }
 

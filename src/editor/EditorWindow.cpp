@@ -17,6 +17,8 @@
 #include "editor/TagShape.h"
 #include "editor/TextShape.h"
 #include "export/PngFileExporter.h"
+#include "ocr/OcrTextDialog.h"
+#include "ocr/WindowsOcrEngine.h"
 #include "utils/LogUtils.h"
 #include "utils/RectUtils.h"
 #include "utils/VirtualScreenUtils.h"
@@ -97,7 +99,10 @@ bool EditorWindow::CreateEditorWindow(HWND owner) {
 
     virtualScreen_ = utils::GetVirtualScreenRect();
     imageRect_ = document_.screenRect;
-    imageClientRect_ = utils::ScreenRectToVirtualClientRect(imageRect_, virtualScreen_);
+    const bool longImage = document_.baseImage.width != utils::Width(imageRect_) ||
+        document_.baseImage.height != utils::Height(imageRect_);
+    viewport_.Layout(document_.baseImage, imageRect_, virtualScreen_, longImage);
+    RefreshViewportClientRect();
     utils::LogRect(L"[Editor] virtual screen", virtualScreen_);
     utils::LogRect(L"[Editor] image screen", imageRect_);
     toolbar_.Layout(imageRect_, virtualScreen_);
@@ -106,7 +111,7 @@ bool EditorWindow::CreateEditorWindow(HWND owner) {
     styleBar_.Layout(toolbar_.Bounds(), virtualScreen_);
 
     hwnd_ = CreateWindowExW(
-        WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED,
         kEditorWindowClass,
         L"MySnipaste Editor",
         WS_POPUP,
@@ -122,6 +127,11 @@ bool EditorWindow::CreateEditorWindow(HWND owner) {
     if (!hwnd_) {
         utils::LogLastError(L"[Editor] CreateWindowExW");
         return false;
+    }
+
+    if (kEditorUsesTransparentBackground &&
+        !SetLayeredWindowAttributes(hwnd_, kEditorTransparentBackgroundColor, 0, LWA_COLORKEY)) {
+        utils::LogLastError(L"[Editor] SetLayeredWindowAttributes");
     }
 
     utils::LogDpi(L"[Editor] window", hwnd_);
@@ -170,6 +180,22 @@ void EditorWindow::CreateToolbarTooltips() {
         info.rect = utils::ScreenRectToVirtualClientRect(button.bounds, virtualScreen_);
         info.lpszText = const_cast<LPWSTR>(button.tooltip.data());
         SendMessageW(tooltipHwnd_, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&info));
+    }
+}
+
+void EditorWindow::UpdateToolbarTooltipRects() {
+    if (!tooltipHwnd_) {
+        return;
+    }
+
+    int toolId = 1;
+    for (const auto& button : toolbar_.Buttons()) {
+        TOOLINFOW info{};
+        info.cbSize = sizeof(info);
+        info.hwnd = hwnd_;
+        info.uId = static_cast<UINT_PTR>(toolId++);
+        info.rect = utils::ScreenRectToVirtualClientRect(button.bounds, virtualScreen_);
+        SendMessageW(tooltipHwnd_, TTM_NEWTOOLRECTW, 0, reinterpret_cast<LPARAM>(&info));
     }
 }
 
@@ -285,6 +311,35 @@ void EditorWindow::SavePngFromDialog() {
         0);
 }
 
+void EditorWindow::RunOcr() {
+    if (HasActiveTextInput()) {
+        CommitTextInput(true);
+    }
+
+    auto finalImage = EditorRenderer::RenderFinalImage(document_);
+    if (!finalImage.has_value()) {
+        PostMessageW(owner_, app::kEditorNotificationMessage, app::kEditorNotifyOcrFailed, 0);
+        return;
+    }
+
+    ocr::WindowsOcrEngine engine;
+    if (engine.Availability() != ocr::OcrAvailability::Available) {
+        PostMessageW(owner_, app::kEditorNotificationMessage, app::kEditorNotifyOcrUnavailable, 0);
+        return;
+    }
+
+    const auto result = engine.Recognize(*finalImage);
+    if (!result.has_value()) {
+        PostMessageW(owner_, app::kEditorNotificationMessage, app::kEditorNotifyOcrFailed, 0);
+        return;
+    }
+
+    ocr::OcrTextDialog dialog;
+    dialog.ShowModal(hwnd_, result->text);
+    SetForegroundWindow(hwnd_);
+    SetFocus(hwnd_);
+}
+
 void EditorWindow::OnPaint() {
     PAINTSTRUCT ps{};
     HDC hdc = BeginPaint(hwnd_, &ps);
@@ -320,25 +375,33 @@ void EditorWindow::OnPaint() {
 }
 
 void EditorWindow::DrawScene(HDC hdc, const RECT& client) {
-    HBRUSH dimBrush = CreateSolidBrush(RGB(78, 82, 82));
-    FillRect(hdc, &client, dimBrush);
-    DeleteObject(dimBrush);
+    HBRUSH backgroundBrush = CreateSolidBrush(kEditorTransparentBackgroundColor);
+    FillRect(hdc, &client, backgroundBrush);
+    DeleteObject(backgroundBrush);
 
+    const int savedDc = SaveDC(hdc);
+    IntersectClipRect(
+        hdc,
+        viewportClientRect_.left,
+        viewportClientRect_.top,
+        viewportClientRect_.right,
+        viewportClientRect_.bottom);
     if (!EditorRenderer::DrawPreview(hdc, document_, imageClientRect_, previewShape_.get())) {
         utils::LogError(L"[Editor] DrawImage failed.");
     }
+    DrawCropPreview(hdc, imageClientRect_);
+    DrawSelectedShapeBounds(hdc);
+    DrawTextInputFrame(hdc);
+    RestoreDC(hdc, savedDc);
 
     HPEN borderPen = CreatePen(PS_SOLID, 1, RGB(40, 130, 240));
     HGDIOBJ oldPen = SelectObject(hdc, borderPen);
     HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
-    Rectangle(hdc, imageClientRect_.left, imageClientRect_.top, imageClientRect_.right, imageClientRect_.bottom);
+    Rectangle(hdc, viewportClientRect_.left, viewportClientRect_.top, viewportClientRect_.right, viewportClientRect_.bottom);
     SelectObject(hdc, oldBrush);
     SelectObject(hdc, oldPen);
     DeleteObject(borderPen);
 
-    DrawCropPreview(hdc, imageClientRect_);
-    DrawSelectedShapeBounds(hdc);
-    DrawTextInputFrame(hdc);
     toolbar_.Draw(hdc, POINT{virtualScreen_.left, virtualScreen_.top});
     styleBar_.Draw(hdc, POINT{virtualScreen_.left, virtualScreen_.top});
 }
@@ -382,6 +445,8 @@ void EditorWindow::OnClick(POINT screenPoint) {
         PinAndClose();
     } else if (*action == ToolbarAction::Save) {
         SavePngFromDialog();
+    } else if (*action == ToolbarAction::Ocr) {
+        RunOcr();
     } else if (*action == ToolbarAction::Undo) {
         if (HasActiveTextInput()) {
             CommitTextInput(true);
@@ -415,15 +480,11 @@ void EditorWindow::OnClick(POINT screenPoint) {
 }
 
 std::optional<POINT> EditorWindow::ScreenPointToImage(POINT screenPoint) const {
-    return ScreenPointToImagePoint(screenPoint, imageRect_);
+    return viewport_.ScreenToImage(screenPoint);
 }
 
 POINT EditorWindow::ClampScreenPointToImage(POINT screenPoint) const {
-    POINT imagePoint{
-        screenPoint.x - imageRect_.left,
-        screenPoint.y - imageRect_.top,
-    };
-    return ClampPointToImageBounds(imagePoint, document_.baseImage.width, document_.baseImage.height);
+    return viewport_.ClampScreenToImage(screenPoint);
 }
 
 std::unique_ptr<Shape> EditorWindow::MakeShapeForCurrentDrag() const {
@@ -476,6 +537,12 @@ void EditorWindow::OnMouseDown(POINT screenPoint) {
     if (HasActiveTextInput()) {
         CommitTextInput(true);
     }
+    if (toolbar_.IsDragSurface(screenPoint)) {
+        draggingToolbar_ = true;
+        toolbarDragLastScreen_ = screenPoint;
+        SetCapture(hwnd_);
+        return;
+    }
     if (toolbar_.HitTest(screenPoint).has_value() || styleBar_.HitTest(screenPoint).has_value()) {
         return;
     }
@@ -491,6 +558,7 @@ void EditorWindow::OnMouseDown(POINT screenPoint) {
                 styleBar_.SetStyle(selected->Style());
             }
             movingSelected_ = true;
+            movedSelectedDuringDrag_ = false;
             lastMoveImage_ = *imagePoint;
             dragBeforeSnapshot_ = std::make_unique<EditorDocument::DocumentSnapshot>(document_.CaptureSnapshot());
             SetCapture(hwnd_);
@@ -541,15 +609,33 @@ void EditorWindow::OnMouseDown(POINT screenPoint) {
 }
 
 void EditorWindow::OnMouseMove(POINT screenPoint) {
+    if (draggingToolbar_) {
+        const int dx = screenPoint.x - toolbarDragLastScreen_.x;
+        const int dy = screenPoint.y - toolbarDragLastScreen_.y;
+        if (dx != 0 || dy != 0) {
+            toolbar_.MoveBy(dx, dy, virtualScreen_);
+            styleBar_.Layout(toolbar_.Bounds(), virtualScreen_);
+            UpdateToolbarTooltipRects();
+            toolbarDragLastScreen_ = screenPoint;
+            InvalidateEditor();
+        }
+        return;
+    }
+
     if (movingSelected_) {
         const POINT imagePoint = ClampScreenPointToImage(screenPoint);
         const int dx = imagePoint.x - lastMoveImage_.x;
         const int dy = imagePoint.y - lastMoveImage_.y;
         if (dx != 0 || dy != 0) {
             if (Shape* selected = document_.SelectedShape()) {
+                const RECT beforeBounds = selected->Bounds();
                 selected->MoveBy(dx, dy, SIZE{document_.baseImage.width, document_.baseImage.height});
+                const RECT afterBounds = selected->Bounds();
+                if (!EqualRect(&beforeBounds, &afterBounds)) {
+                    movedSelectedDuringDrag_ = true;
+                    InvalidateEditor();
+                }
                 lastMoveImage_ = imagePoint;
-                InvalidateEditor();
             }
         }
         return;
@@ -591,14 +677,22 @@ void EditorWindow::OnMouseMove(POINT screenPoint) {
 }
 
 void EditorWindow::OnMouseUp(POINT screenPoint) {
+    if (draggingToolbar_) {
+        draggingToolbar_ = false;
+        ReleaseCapture();
+        InvalidateEditor();
+        return;
+    }
+
     if (movingSelected_) {
         movingSelected_ = false;
         ReleaseCapture();
-        if (dragBeforeSnapshot_) {
+        if (dragBeforeSnapshot_ && movedSelectedDuringDrag_) {
             document_.CommitSnapshot(std::move(*dragBeforeSnapshot_));
-            dragBeforeSnapshot_.reset();
             RefreshToolbarHistoryState();
         }
+        dragBeforeSnapshot_.reset();
+        movedSelectedDuringDrag_ = false;
         InvalidateEditor();
         return;
     }
@@ -671,6 +765,19 @@ void EditorWindow::OnMouseUp(POINT screenPoint) {
     }
 }
 
+void EditorWindow::OnMouseWheel(POINT screenPoint, int delta, bool ctrlDown) {
+    if (HasActiveTextInput()) {
+        CommitTextInput(true);
+    }
+    if (ctrlDown) {
+        viewport_.ZoomAt(screenPoint, delta > 0 ? 1.1f : 0.9f);
+    } else {
+        viewport_.ScrollBy(-delta);
+    }
+    RefreshViewportClientRect();
+    InvalidateEditor();
+}
+
 void EditorWindow::OnDoubleClick(POINT screenPoint) {
     if (toolbar_.HitTest(screenPoint).has_value() || styleBar_.HitTest(screenPoint).has_value()) {
         return;
@@ -711,6 +818,10 @@ void EditorWindow::PlaceNumber(POINT imagePoint) {
 }
 
 void EditorWindow::OnKeyDown(WPARAM key) {
+    if (key == 'O' && (GetKeyState(VK_CONTROL) & 0x8000) != 0 && !HasActiveTextInput()) {
+        RunOcr();
+        return;
+    }
     if (key == 'S' && (GetKeyState(VK_CONTROL) & 0x8000) != 0 && !HasActiveTextInput()) {
         SavePngFromDialog();
         return;
@@ -765,8 +876,9 @@ void EditorWindow::BeginTextInput(POINT imagePoint, const std::wstring& initialT
     textPositionImage_ = imagePoint;
     editingTextIndex_ = editIndex;
     textInputCreatesTag_ = !editIndex.has_value() && toolManager_.CurrentTool() == ToolType::Tag;
-    const int x = imageClientRect_.left + imagePoint.x;
-    const int y = imageClientRect_.top + imagePoint.y;
+    const POINT clientPoint = viewport_.ImagePointToClient(imagePoint);
+    const int x = clientPoint.x;
+    const int y = clientPoint.y;
     const int availableWidth = static_cast<int>(imageClientRect_.right - x);
     const int availableHeight = static_cast<int>(imageClientRect_.bottom - y);
     const int frameWidth = (std::min)(kTextInputWidth + 80, availableWidth);
@@ -896,12 +1008,7 @@ void EditorWindow::DrawSelectedShapeBounds(HDC hdc) {
     }
 
     const RECT bounds = selected->Bounds();
-    RECT clientBounds{
-        imageClientRect_.left + bounds.left,
-        imageClientRect_.top + bounds.top,
-        imageClientRect_.left + bounds.right,
-        imageClientRect_.top + bounds.bottom,
-    };
+    RECT clientBounds = viewport_.ImageRectToClient(bounds);
     HPEN pen = CreatePen(PS_DOT, 1, RGB(32, 128, 255));
     HGDIOBJ oldPen = SelectObject(hdc, pen);
     HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
@@ -917,12 +1024,7 @@ void EditorWindow::DrawCropPreview(HDC hdc, const RECT& imageClientRect) {
         return;
     }
 
-    RECT cropClient{
-        imageClientRect.left + crop->left,
-        imageClientRect.top + crop->top,
-        imageClientRect.left + crop->right,
-        imageClientRect.top + crop->bottom,
-    };
+    RECT cropClient = viewport_.ImageRectToClient(*crop);
     HBRUSH shade = CreateSolidBrush(RGB(55, 55, 55));
     RECT top{imageClientRect.left, imageClientRect.top, imageClientRect.right, cropClient.top};
     RECT left{imageClientRect.left, cropClient.top, cropClient.left, cropClient.bottom};
@@ -958,6 +1060,11 @@ void EditorWindow::DrawCropPreview(HDC hdc, const RECT& imageClientRect) {
         FillRect(hdc, &handleRect, handleBrush);
     }
     DeleteObject(handleBrush);
+}
+
+void EditorWindow::RefreshViewportClientRect() {
+    imageClientRect_ = viewport_.DisplayClientRect();
+    viewportClientRect_ = viewport_.ViewportClientRect();
 }
 
 LRESULT CALLBACK EditorWindow::TextEditProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -1015,6 +1122,13 @@ LRESULT EditorWindow::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPAR
         RelayTooltipMessage(message, wParam, lParam);
         OnMouseMove(ScreenPointFromLParam(hwnd, lParam));
         return 0;
+    case WM_MOUSEWHEEL:
+        RelayTooltipMessage(message, wParam, lParam);
+        OnMouseWheel(
+            POINT{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)},
+            GET_WHEEL_DELTA_WPARAM(wParam),
+            (GET_KEYSTATE_WPARAM(wParam) & MK_CONTROL) != 0);
+        return 0;
     case WM_LBUTTONUP:
         RelayTooltipMessage(message, wParam, lParam);
         OnMouseUp(ScreenPointFromLParam(hwnd, lParam));
@@ -1022,6 +1136,9 @@ LRESULT EditorWindow::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPAR
     case WM_LBUTTONDBLCLK:
         RelayTooltipMessage(message, wParam, lParam);
         OnDoubleClick(ScreenPointFromLParam(hwnd, lParam));
+        return 0;
+    case WM_CAPTURECHANGED:
+        draggingToolbar_ = false;
         return 0;
     case WM_CTLCOLOREDIT:
         if (reinterpret_cast<HWND>(lParam) == textEditHwnd_) {

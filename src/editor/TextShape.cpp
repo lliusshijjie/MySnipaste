@@ -121,8 +121,9 @@ RECT TextShape::Bounds() const {
 }
 
 void TextShape::MoveBy(int dx, int dy, SIZE imageSize) {
-    const RECT moved = ClampMovedRect(OffsetRectCopy(Bounds(), dx, dy), imageSize);
-    position = POINT{moved.left, moved.top};
+    const POINT delta = ComputeBoundedMoveDelta(Bounds(), dx, dy, imageSize);
+    position.x += delta.x;
+    position.y += delta.y;
 }
 
 bool TextShape::ApplyStyle(const EditorStyle& style) {

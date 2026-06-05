@@ -85,7 +85,8 @@ RECT BlurShape::Bounds() const {
 }
 
 void BlurShape::MoveBy(int dx, int dy, SIZE imageSize) {
-    rect = ClampMovedRect(OffsetRectCopy(rect, dx, dy), imageSize);
+    const POINT delta = ComputeBoundedMoveDelta(Bounds(), dx, dy, imageSize);
+    rect = OffsetRectCopy(rect, delta.x, delta.y);
 }
 
 bool BlurShape::ApplyStyle(const EditorStyle& style) {

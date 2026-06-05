@@ -4,6 +4,7 @@
 #include "editor/EditorWindow.h"
 #include "export/ClipboardExporter.h"
 #include "hotkey/HotkeyManager.h"
+#include "longcapture/LongCaptureController.h"
 #include "pin/PinnedImageManager.h"
 #include "tray/TrayIcon.h"
 
@@ -15,6 +16,8 @@ enum class AppState {
     Idle,
     Selecting,
     Capturing,
+    LongSelecting,
+    LongCapturing,
     Editing,
     CopyingToClipboard,
     Exiting
@@ -32,6 +35,8 @@ private:
 
     bool CreateMainWindow();
     void StartCapture();
+    void StartLongCapture();
+    void OpenEditorForCapture(const capture::CaptureResult& captureResult);
     void SetState(AppState state);
 
     HINSTANCE instance_ = nullptr;
@@ -40,6 +45,7 @@ private:
     hotkey::HotkeyManager hotkey_;
     tray::TrayIcon trayIcon_;
     capture::GdiCaptureBackend captureBackend_;
+    longcapture::LongCaptureController longCaptureController_;
     export_::ClipboardExporter clipboardExporter_;
     pin::PinnedImageManager pinnedImageManager_;
 };

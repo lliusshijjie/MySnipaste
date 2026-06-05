@@ -263,6 +263,27 @@ TEST_CASE(EditorDocument_MoveSelectedShapeIsUndoable) {
     REQUIRE(restored->rect.top == 10);
 }
 
+TEST_CASE(EditorDocument_MoveSelectedShapeReturnsFalseWhenBlockedByBoundary) {
+    EditorDocument document;
+    document.baseImage = *mysnip::image::ImageBuffer::Create(100, 100);
+    document.AddShape(std::make_unique<RectangleShape>(RECT{1, 10, 31, 40}));
+    document.SelectShapeAt(POINT{1, 20}, 4);
+
+    REQUIRE(!document.MoveSelectedShape(-20, 0));
+}
+
+TEST_CASE(EditorDocument_MoveSelectedShapeDoesNotCreateUndoForNoop) {
+    EditorDocument document;
+    document.baseImage = *mysnip::image::ImageBuffer::Create(100, 100);
+    document.AddShape(std::make_unique<RectangleShape>(RECT{1, 10, 31, 40}));
+    document.SelectShapeAt(POINT{1, 20}, 4);
+    const auto undoCount = document.undoStack.size();
+
+    REQUIRE(!document.MoveSelectedShape(-20, 0));
+
+    REQUIRE(document.undoStack.size() == undoCount);
+}
+
 TEST_CASE(EditorDocument_UpdateTextShapeIsUndoable) {
     EditorDocument document;
     document.AddTextShape(POINT{5, 6}, L"old");
