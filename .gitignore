@@ -3,6 +3,7 @@ build/
 build-*/
 out/
 .vs/
+.worktrees/
 
 # CMake generated files
 CMakeCache.txt
