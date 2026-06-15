@@ -46,6 +46,13 @@ compile_commands.json
 *.temp
 ScreenshotMvpTests.progress.txt
 
+# MSIX and local development signing artifacts
+*.msix
+*.pfx
+*.cer
+dev-signing/
+msix-layout/
+
 # Editor and OS files
 .vscode/
 .idea/

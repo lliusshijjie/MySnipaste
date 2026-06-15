@@ -175,3 +175,20 @@ add_custom_target(package-msix
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "Packaging MySnipaste MSIX"
 )
+
+add_custom_target(install-dev-msix
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+        -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install_dev_msix.ps1"
+        -BuildDir "${CMAKE_BINARY_DIR}"
+    DEPENDS ScreenshotMvp
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "Signing, installing, and launching MySnipaste development MSIX"
+)
+
+add_custom_target(uninstall-dev-msix
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+        -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/uninstall_dev_msix.ps1"
+        -BuildDir "${CMAKE_BINARY_DIR}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "Uninstalling MySnipaste development MSIX"
+)

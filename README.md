@@ -108,6 +108,50 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package_msix.ps1 `
   -CertificatePassword your_password
 ```
 
+## 本机开发安装 MSIX
+
+OCR 使用 `Windows.Media.Ocr`，必须从具有 package identity 的已安装
+MSIX 应用启动。不要通过 `build-nmake\ScreenshotMvp.exe` 验证 OCR。
+
+一键生成自签名开发证书、信任证书、签名并安装 MSIX，然后启动应用：
+
+```bat
+cmake --build build-nmake --target install-dev-msix
+```
+
+首次执行会出现标准 UAC 提示，因为开发证书需要安装到
+`LocalMachine\TrustedPeople`。该证书仅用于本机开发测试，不适合正式分发。
+证书、私钥和随机密码保存在 `build-nmake\dev-signing\`，并已被 Git 忽略。
+
+只安装但不启动时，可以直接运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_dev_msix.ps1 `
+  -BuildDir build-nmake `
+  -NoLaunch
+```
+
+卸载开发包：
+
+```bat
+cmake --build build-nmake --target uninstall-dev-msix
+```
+
+卸载开发包并删除此项目创建的本机开发证书：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\uninstall_dev_msix.ps1 `
+  -BuildDir build-nmake `
+  -RemoveCertificate
+```
+
+安装完成后，可用以下命令检查包和签名：
+
+```powershell
+Get-AppxPackage -Name MySnipaste.ScreenshotMvp
+Get-AuthenticodeSignature build-nmake\MySnipaste.msix
+```
+
 ## 运行
 
 构建成功后运行：
