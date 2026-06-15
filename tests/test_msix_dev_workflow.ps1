@@ -56,6 +56,27 @@ foreach ($required in @(
 if ($uninstallScript -notmatch "RemoveCertificate") {
     throw "Cleanup switch is missing."
 }
+
+$certificateCreationIndex = $installScript.IndexOf(
+    "Creating a self-signed MySnipaste development certificate")
+$conditionalElevationIndex = $installScript.IndexOf(
+    'if (!$trustedCertificate -and !(Test-IsAdministrator))')
+if ($certificateCreationIndex -lt 0 `
+    -or $conditionalElevationIndex -lt 0 `
+    -or $conditionalElevationIndex -lt $certificateCreationIndex) {
+    throw "Install workflow must request elevation only when certificate trust is missing."
+}
+
+$cleanupElevationIndex = $uninstallScript.IndexOf(
+    'if ($RemoveCertificate -and !(Test-IsAdministrator))')
+$packageRemovalIndex = $uninstallScript.IndexOf(
+    "Get-AppxPackage -Name")
+if ($cleanupElevationIndex -lt 0 `
+    -or $packageRemovalIndex -lt 0 `
+    -or $cleanupElevationIndex -gt $packageRemovalIndex) {
+    throw "Certificate cleanup must elevate before uninstalling the package."
+}
+
 if ($cmake -notmatch "install-dev-msix") {
     throw "CMake install target is missing."
 }

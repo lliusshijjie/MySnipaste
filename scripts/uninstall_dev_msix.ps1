@@ -43,18 +43,7 @@ if ([string]::IsNullOrWhiteSpace($packageName)) {
     throw "Package identity could not be read from $manifestPath."
 }
 
-Get-AppxPackage -Name $packageName -ErrorAction SilentlyContinue |
-    ForEach-Object {
-        Write-Host "Removing package: $($_.PackageFullName)"
-        Remove-AppxPackage -Package $_.PackageFullName -ErrorAction Stop
-    }
-
-if (!$RemoveCertificate) {
-    Write-Host "Development package removed. The signing certificate was preserved."
-    exit 0
-}
-
-if (!(Test-IsAdministrator)) {
+if ($RemoveCertificate -and !(Test-IsAdministrator)) {
     if ($Elevated) {
         throw "Administrative privileges are required to remove the trusted certificate."
     }
@@ -80,6 +69,17 @@ if (!(Test-IsAdministrator)) {
     if ($process.ExitCode -ne 0) {
         throw "Elevated certificate cleanup failed with exit code $($process.ExitCode)."
     }
+    exit 0
+}
+
+Get-AppxPackage -Name $packageName -ErrorAction SilentlyContinue |
+    ForEach-Object {
+        Write-Host "Removing package: $($_.PackageFullName)"
+        Remove-AppxPackage -Package $_.PackageFullName -ErrorAction Stop
+    }
+
+if (!$RemoveCertificate) {
+    Write-Host "Development package removed. The signing certificate was preserved."
     exit 0
 }
 

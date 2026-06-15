@@ -80,38 +80,6 @@ if ([string]::IsNullOrWhiteSpace($packageName) `
     throw "Package identity, publisher, or application id is missing from $manifestPath."
 }
 
-if (!(Test-IsAdministrator)) {
-    if ($Elevated) {
-        throw "Administrative privileges are required to trust the development certificate."
-    }
-
-    $argumentList = @(
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        (Quote-ProcessArgument $PSCommandPath),
-        "-BuildDir",
-        (Quote-ProcessArgument $buildPath),
-        "-Elevated"
-    )
-    if ($NoLaunch) {
-        $argumentList += "-NoLaunch"
-    }
-
-    Write-Host "Requesting administrator permission to trust and install the development package..."
-    $process = Start-Process `
-        -FilePath "powershell.exe" `
-        -ArgumentList $argumentList `
-        -Verb RunAs `
-        -Wait `
-        -PassThru
-    if ($process.ExitCode -ne 0) {
-        throw "Elevated MSIX installation failed with exit code $($process.ExitCode)."
-    }
-    exit 0
-}
-
 New-Item -ItemType Directory -Path $signingDirectory -Force | Out-Null
 
 $certificate = $null
@@ -193,6 +161,38 @@ if ($certificate.Subject -ne $publisher) {
 $trustedCertificate = Get-Item `
     -LiteralPath "Cert:\LocalMachine\TrustedPeople\$($certificate.Thumbprint)" `
     -ErrorAction SilentlyContinue
+if (!$trustedCertificate -and !(Test-IsAdministrator)) {
+    if ($Elevated) {
+        throw "Administrative privileges are required to trust the development certificate."
+    }
+
+    $argumentList = @(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        (Quote-ProcessArgument $PSCommandPath),
+        "-BuildDir",
+        (Quote-ProcessArgument $buildPath),
+        "-Elevated"
+    )
+    if ($NoLaunch) {
+        $argumentList += "-NoLaunch"
+    }
+
+    Write-Host "Requesting administrator permission to trust the development certificate..."
+    $process = Start-Process `
+        -FilePath "powershell.exe" `
+        -ArgumentList $argumentList `
+        -Verb RunAs `
+        -Wait `
+        -PassThru
+    if ($process.ExitCode -ne 0) {
+        throw "Elevated MSIX installation failed with exit code $($process.ExitCode)."
+    }
+    exit 0
+}
+
 if (!$trustedCertificate) {
     Write-Host "Trusting the development certificate in LocalMachine\TrustedPeople..."
     Import-Certificate `
