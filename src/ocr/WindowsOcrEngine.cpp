@@ -1,5 +1,6 @@
 #include "ocr/WindowsOcrEngine.h"
 
+#include "ocr/OcrThreadRunner.h"
 #include "utils/LogUtils.h"
 
 #include <appmodel.h>
@@ -48,38 +49,42 @@ OcrAvailability WindowsOcrEngine::Availability() const {
         return OcrAvailability::MissingPackageIdentity;
     }
     try {
-        winrt::init_apartment(winrt::apartment_type::single_threaded);
-        const auto engine = winrt::Windows::Media::Ocr::OcrEngine::TryCreateFromUserProfileLanguages();
-        return engine ? OcrAvailability::Available : OcrAvailability::Unsupported;
+        return OcrThreadRunner::Run([] {
+            const auto engine = winrt::Windows::Media::Ocr::OcrEngine::TryCreateFromUserProfileLanguages();
+            return engine ? OcrAvailability::Available : OcrAvailability::Unsupported;
+        });
     } catch (...) {
         return OcrAvailability::Unsupported;
     }
 }
 
 std::optional<OcrResult> WindowsOcrEngine::Recognize(const image::ImageBuffer& image) {
-    if (Availability() != OcrAvailability::Available) {
+    if (!HasPackageIdentity() || !image.IsValid()) {
         return std::nullopt;
     }
 
     try {
-        const auto bitmap = CreateSoftwareBitmap(image);
-        if (!bitmap.has_value()) {
-            return std::nullopt;
-        }
-
-        const auto engine = winrt::Windows::Media::Ocr::OcrEngine::TryCreateFromUserProfileLanguages();
-        if (!engine) {
-            return std::nullopt;
-        }
-        const auto result = engine.RecognizeAsync(*bitmap).get();
-        std::wstring text;
-        for (const auto& line : result.Lines()) {
-            if (!text.empty()) {
-                text += L"\r\n";
+        return OcrThreadRunner::Run([&image]() -> std::optional<OcrResult> {
+            const auto bitmap = CreateSoftwareBitmap(image);
+            if (!bitmap.has_value()) {
+                return std::nullopt;
             }
-            text += std::wstring(line.Text());
-        }
-        return OcrResult{text};
+
+            const auto engine = winrt::Windows::Media::Ocr::OcrEngine::TryCreateFromUserProfileLanguages();
+            if (!engine) {
+                return std::nullopt;
+            }
+
+            const auto result = engine.RecognizeAsync(*bitmap).get();
+            std::wstring text;
+            for (const auto& line : result.Lines()) {
+                if (!text.empty()) {
+                    text += L"\r\n";
+                }
+                text += std::wstring(line.Text());
+            }
+            return OcrResult{text};
+        });
     } catch (...) {
         utils::LogError(L"[OCR] Windows OCR failed.");
         return std::nullopt;
