@@ -17,7 +17,7 @@
 #include "editor/TagShape.h"
 #include "editor/TextShape.h"
 #include "export/PngFileExporter.h"
-#include "ocr/OcrTextDialog.h"
+#include "ocr/OcrResultPopup.h"
 #include "ocr/WindowsOcrEngine.h"
 #include "utils/LogUtils.h"
 #include "utils/RectUtils.h"
@@ -334,8 +334,12 @@ void EditorWindow::RunOcr() {
         return;
     }
 
-    ocr::OcrTextDialog dialog;
-    dialog.ShowModal(hwnd_, result->text);
+    ocr::OcrResultPopup popup;
+    popup.ShowModal(
+        hwnd_,
+        viewport_.ViewportRect(),
+        virtualScreen_,
+        result->text);
     SetForegroundWindow(hwnd_);
     SetFocus(hwnd_);
 }

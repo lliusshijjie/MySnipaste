@@ -25,7 +25,7 @@ TEST_CASE(ToolbarHitTest_ReturnsOcrForOcrButton) {
     REQUIRE(toolbar.HitTest(CenterOf(*ocr)) == ToolbarAction::Ocr);
 }
 
-TEST_CASE(OcrTextDialog_CopyUsesUnicodeTextPolicy) {
+TEST_CASE(OcrResultPopup_CopyUsesUnicodeTextPolicy) {
     const auto payload = mysnip::ocr::BuildUnicodeClipboardPayload(L"hello\r\n\u4e2d\u6587");
 
     REQUIRE(payload.size() == 10);

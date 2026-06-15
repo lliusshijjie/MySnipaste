@@ -44,7 +44,7 @@ set(SCREENSHOT_MVP_SOURCES
     src/longcapture/ScrollDriver.cpp
     src/main.cpp
     src/ocr/OcrClipboardText.cpp
-    src/ocr/OcrTextDialog.cpp
+    src/ocr/OcrResultPopup.cpp
     src/ocr/WindowsOcrEngine.cpp
     src/pin/PinnedImageManager.cpp
     src/pin/PinnedImageWindow.cpp
@@ -129,8 +129,9 @@ add_executable(ScreenshotMvpTests
     tests/test_long_capture_stitcher.cpp
     tests/test_long_capture_overlay_layout.cpp
     tests/test_long_capture_overlay_config.cpp
-    tests/test_ocr_dialog_layout.cpp
     tests/test_ocr_feature.cpp
+    tests/test_ocr_popup_layout.cpp
+    tests/test_ocr_popup_state.cpp
     tests/test_ocr_thread_runner.cpp
     tests/test_tray_menu_model.cpp
     tests/test_virtual_screen_utils.cpp
